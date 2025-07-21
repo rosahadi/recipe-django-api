@@ -1,7 +1,5 @@
 FROM python:3.12-alpine
 
-LABEL maintainer="londonappdeveloper.com"
-
 # Prevent Python from buffering stdout/stderr
 ENV PYTHONUNBUFFERED=1
 
