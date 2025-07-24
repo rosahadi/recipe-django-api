@@ -26,6 +26,8 @@ RUN apk add --no-cache \
     zlib-dev \
     libjpeg \
     libpq \
+    openssl-dev \
+    libffi-dev \ 
     && apk add --no-cache --virtual .build-deps \
     gcc \
     musl-dev \

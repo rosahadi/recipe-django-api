@@ -18,7 +18,11 @@ services:
       - DB_NAME=recipe-django-api
       - DB_USER=postgres
       - DB_PASS=postgres
-      - DEBUG=1
+      - DEBUG=true
+
+      - RESEND_API_KEY=${RESEND_API_KEY:-changeme}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-noreply@example.com}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8000}
     depends_on:
       db:
         condition: service_healthy
@@ -32,7 +36,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - "5432:5434"
+      - "5433:5432"
     healthcheck:
       test:
         [
