@@ -257,8 +257,8 @@ SECURE_HSTS_PRELOAD = (
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:8000")
 
 EMAIL_RATE_LIMIT = {
-    'verification': '3/hour',  # Max 3 verification emails per hour
-    'password_reset': '5/hour',
+    "verification": "3/hour",  # Max 3 verification emails per hour
+    "password_reset": "5/hour",
 }
 
 
