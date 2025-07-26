@@ -75,23 +75,38 @@ class User(AbstractBaseUser, PermissionsMixin):
         return True
 
 
-class Tag(models.Model):
+class TimeStampedModel(models.Model):
+    """Abstract base model with created and modified timestamps."""
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class Tag(TimeStampedModel):
     """Tag for filtering recipes."""
     name = models.CharField(max_length=255, unique=True)
 
     def __str__(self):
         return self.name
 
+    class Meta:
+        ordering = ['name']
 
-class Ingredient(models.Model):
+
+class Ingredient(TimeStampedModel):
     """Ingredient for recipes."""
     name = models.CharField(max_length=255, unique=True)
 
     def __str__(self):
         return self.name
 
+    class Meta:
+        ordering = ['name']
 
-class Recipe(models.Model):
+
+class Recipe(TimeStampedModel):
     """Recipe object."""
 
     DIFFICULTY_CHOICES = [
@@ -134,12 +149,19 @@ class Recipe(models.Model):
     def __str__(self):
         return self.title
 
+    class Meta:
+        ordering = ['-created_at']
+
 
 class RecipeIngredient(models.Model):
     """Ingredient quantities for recipes."""
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
     quantity = models.CharField(max_length=50, help_text="e.g., '2 cups', '1 tbsp'")
+
+    class Meta:
+        # Prevent duplicate ingredients in same recipe
+        unique_together = ('recipe', 'ingredient')
 
     def __str__(self):
         return f"{self.quantity} {self.ingredient.name}"
