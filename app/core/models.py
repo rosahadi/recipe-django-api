@@ -1,10 +1,21 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-from django.core.validators import validate_email
+from django.conf import settings
+from django.core.validators import (
+    validate_email, MinValueValidator
+    )
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+import os
 from .managers import UserManager
+
+
+def recipe_image_file_path(instance, filename):
+    """Generate file path for new recipe image."""
+    ext = filename.split('.')[-1]
+    filename = f'{uuid.uuid4()}.{ext}'
+    return os.path.join('uploads', 'recipe', filename)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -62,3 +73,73 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.email_verification_sent_at = timezone.now()
         self.save()
         return True
+
+
+class Tag(models.Model):
+    """Tag for filtering recipes."""
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Ingredient(models.Model):
+    """Ingredient for recipes."""
+    name = models.CharField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Recipe(models.Model):
+    """Recipe object."""
+
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    ]
+
+    # Basic Information
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recipes'
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    instructions = models.TextField()
+
+    # Time and Difficulty
+    time_minutes = models.IntegerField(validators=[MinValueValidator(1)])
+    difficulty = models.CharField(
+        max_length=10,
+        choices=DIFFICULTY_CHOICES,
+        default='easy'
+    )
+
+    # Servings and Cost
+    servings = models.IntegerField(
+        validators=[MinValueValidator(1)],
+        default=4
+    )
+
+    # Relationships
+    tags = models.ManyToManyField(Tag, blank=True)
+    ingredients = models.ManyToManyField(Ingredient, through='RecipeIngredient')
+
+    # Media
+    image = models.ImageField(null=True, blank=True, upload_to=recipe_image_file_path)
+
+    def __str__(self):
+        return self.title
+
+
+class RecipeIngredient(models.Model):
+    """Ingredient quantities for recipes."""
+    recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE)
+    ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE)
+    quantity = models.CharField(max_length=50, help_text="e.g., '2 cups', '1 tbsp'")
+
+    def __str__(self):
+        return f"{self.quantity} {self.ingredient.name}"
