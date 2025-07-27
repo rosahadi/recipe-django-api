@@ -64,37 +64,75 @@ class UserModelTests(TestCase):
 
 class TagModelTests(TestCase):
     def test_create_tag_successful(self):
-        tag = Tag.objects.create(name="Vegetarian")
+        """Tags should be created with proper defaults"""
+        tag = Tag.objects.create(name="Vegetarian", slug="vegetarian")
         self.assertEqual(tag.name, "Vegetarian")
+        self.assertEqual(tag.slug, "vegetarian")
+        self.assertEqual(tag.usage_count, 0)
         self.assertEqual(str(tag), "Vegetarian")
-        # Test TimeStampedModel fields
         self.assertIsNotNone(tag.created_at)
         self.assertIsNotNone(tag.updated_at)
 
     def test_tag_name_unique(self):
-        Tag.objects.create(name="Vegan")
+        """Tag names should be unique across the system"""
+        Tag.objects.create(name="Vegan", slug="vegan")
         with self.assertRaises(IntegrityError):
-            Tag.objects.create(name="Vegan")
+            Tag.objects.create(name="Vegan", slug="vegan-2")
+
+    def test_tag_slug_unique(self):
+        """Tag slugs should be unique for URL purposes"""
+        Tag.objects.create(name="Italian", slug="italian")
+        with self.assertRaises(IntegrityError):
+            Tag.objects.create(name="Italian Cuisine", slug="italian")
 
     def test_tag_max_length(self):
+        """Tag names shouldn't be too long for database efficiency"""
         long_name = "a" * 256
         with self.assertRaises(ValidationError):
-            tag = Tag(name=long_name)
+            tag = Tag(name=long_name, slug="test-slug")
             tag.full_clean()
 
     def test_tag_ordering(self):
-        """Test that tags are ordered by name"""
-        Tag.objects.create(name="Zucchini")
-        Tag.objects.create(name="Apple")
-        Tag.objects.create(name="Banana")
+        """Tags should be ordered alphabetically for better UX"""
+        Tag.objects.create(name="Zucchini", slug="zucchini")
+        Tag.objects.create(name="Apple", slug="apple")
+        Tag.objects.create(name="Banana", slug="banana")
 
         tags = list(Tag.objects.all())
         tag_names = [tag.name for tag in tags]
         self.assertEqual(tag_names, ["Apple", "Banana", "Zucchini"])
 
+    def test_increment_usage(self):
+        """Usage count should increase when tags are used in recipes"""
+        tag = Tag.objects.create(name="Spicy", slug="spicy")
+        self.assertEqual(tag.usage_count, 0)
+
+        tag.increment_usage()
+        tag.refresh_from_db()
+        self.assertEqual(tag.usage_count, 1)
+
+    def test_decrement_usage(self):
+        """Usage count should decrease when tags are removed from recipes"""
+        tag = Tag.objects.create(name="Sweet", slug="sweet")
+        tag.usage_count = 3
+        tag.save()
+
+        tag.decrement_usage()
+        tag.refresh_from_db()
+        self.assertEqual(tag.usage_count, 2)
+
+    def test_decrement_usage_cannot_go_negative(self):
+        """Usage count should never go below zero"""
+        tag = Tag.objects.create(name="Healthy", slug="healthy")
+        self.assertEqual(tag.usage_count, 0)
+
+        tag.decrement_usage()
+        tag.refresh_from_db()
+        self.assertEqual(tag.usage_count, 0)
+
     def test_tag_timestamps_update(self):
-        """Test that updated_at changes when model is updated"""
-        tag = Tag.objects.create(name="Original")
+        """Updated timestamp should change when tags are modified"""
+        tag = Tag.objects.create(name="Original", slug="original")
         original_updated = tag.updated_at
 
         import time
@@ -108,26 +146,36 @@ class TagModelTests(TestCase):
 
 class IngredientModelTests(TestCase):
     def test_create_ingredient_successful(self):
-        ingredient = Ingredient.objects.create(name="Tomato")
+        """Ingredients should be created with proper defaults"""
+        ingredient = Ingredient.objects.create(name="Tomato", category="Vegetable")
         self.assertEqual(ingredient.name, "Tomato")
+        self.assertEqual(ingredient.category, "Vegetable")
+        self.assertEqual(ingredient.usage_count, 0)
         self.assertEqual(str(ingredient), "Tomato")
-        # Test TimeStampedModel fields
+        # Check timestamp fields
         self.assertIsNotNone(ingredient.created_at)
         self.assertIsNotNone(ingredient.updated_at)
 
+    def test_create_ingredient_without_category(self):
+        """Ingredients should work fine without a category"""
+        ingredient = Ingredient.objects.create(name="Salt")
+        self.assertEqual(ingredient.category, "")
+
     def test_ingredient_name_unique(self):
+        """Ingredient names should be unique to avoid duplicates"""
         Ingredient.objects.create(name="Onion")
         with self.assertRaises(IntegrityError):
             Ingredient.objects.create(name="Onion")
 
     def test_ingredient_max_length(self):
+        """Ingredient names shouldn't be too long"""
         long_name = "a" * 256
         with self.assertRaises(ValidationError):
             ingredient = Ingredient(name=long_name)
             ingredient.full_clean()
 
     def test_ingredient_ordering(self):
-        """Test that ingredients are ordered by name"""
+        """Ingredients should be sorted alphabetically for easy browsing"""
         Ingredient.objects.create(name="Zucchini")
         Ingredient.objects.create(name="Apple")
         Ingredient.objects.create(name="Banana")
@@ -136,8 +184,36 @@ class IngredientModelTests(TestCase):
         ingredient_names = [ingredient.name for ingredient in ingredients]
         self.assertEqual(ingredient_names, ["Apple", "Banana", "Zucchini"])
 
+    def test_increment_usage(self):
+        """Usage count should track how often ingredients are used"""
+        ingredient = Ingredient.objects.create(name="Garlic")
+        self.assertEqual(ingredient.usage_count, 0)
+
+        ingredient.increment_usage()
+        ingredient.refresh_from_db()
+        self.assertEqual(ingredient.usage_count, 1)
+
+    def test_decrement_usage(self):
+        """Usage count should decrease when ingredients are removed"""
+        ingredient = Ingredient.objects.create(name="Pepper")
+        ingredient.usage_count = 5
+        ingredient.save()
+
+        ingredient.decrement_usage()
+        ingredient.refresh_from_db()
+        self.assertEqual(ingredient.usage_count, 4)
+
+    def test_decrement_usage_stops_at_zero(self):
+        """Usage count should never become negative"""
+        ingredient = Ingredient.objects.create(name="Oregano")
+        self.assertEqual(ingredient.usage_count, 0)
+
+        ingredient.decrement_usage()
+        ingredient.refresh_from_db()
+        self.assertEqual(ingredient.usage_count, 0)
+
     def test_ingredient_timestamps_update(self):
-        """Test that updated_at changes when model is updated"""
+        """Timestamps should update when ingredients are modified"""
         ingredient = Ingredient.objects.create(name="Original")
         original_updated = ingredient.updated_at
 
@@ -155,12 +231,16 @@ class RecipeModelTests(TestCase):
         self.user = User.objects.create_user(
             email="chef@example.com", name="Chef User", password="chefpass123"
         )
-        self.tag1 = Tag.objects.create(name="Vegetarian")
-        self.tag2 = Tag.objects.create(name="Quick")
+        self.other_user = User.objects.create_user(
+            email="other@example.com", name="Other User", password="pass123"
+        )
+        self.tag1 = Tag.objects.create(name="Vegetarian", slug="vegetarian")
+        self.tag2 = Tag.objects.create(name="Quick", slug="quick")
         self.ingredient1 = Ingredient.objects.create(name="Tomato")
         self.ingredient2 = Ingredient.objects.create(name="Basil")
 
     def test_create_recipe_successful(self):
+        """Recipes should be created with all required fields"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Tomato Basil Pasta",
@@ -178,11 +258,13 @@ class RecipeModelTests(TestCase):
         self.assertEqual(recipe.time_minutes, 30)
         self.assertEqual(recipe.difficulty, "easy")
         self.assertEqual(recipe.servings, 4)
+        self.assertTrue(recipe.is_public)
         self.assertEqual(str(recipe), "Tomato Basil Pasta")
         self.assertIsNotNone(recipe.created_at)
         self.assertIsNotNone(recipe.updated_at)
 
     def test_recipe_default_values(self):
+        """Recipes should have sensible defaults"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Test Recipe",
@@ -193,9 +275,21 @@ class RecipeModelTests(TestCase):
         self.assertEqual(recipe.difficulty, "easy")
         self.assertEqual(recipe.servings, 4)
         self.assertEqual(recipe.description, "")
+        self.assertTrue(recipe.is_public)
+
+    def test_recipe_can_be_private(self):
+        """Users should be able to create private recipes"""
+        recipe = Recipe.objects.create(
+            user=self.user,
+            title="Secret Recipe",
+            instructions="Top secret",
+            time_minutes=60,
+            is_public=False
+        )
+        self.assertFalse(recipe.is_public)
 
     def test_recipe_difficulty_choices(self):
-        # Test valid choices
+        """All difficulty levels should work correctly"""
         for difficulty in ['easy', 'medium', 'hard']:
             recipe = Recipe.objects.create(
                 user=self.user,
@@ -207,29 +301,66 @@ class RecipeModelTests(TestCase):
             self.assertEqual(recipe.difficulty, difficulty)
 
     def test_recipe_time_minutes_validation(self):
-        # Test minimum value validation
+        """Recipes need at least 1 minute cooking time"""
         with self.assertRaises(ValidationError):
             recipe = Recipe(
                 user=self.user,
                 title="Invalid Recipe",
                 instructions="Test instructions",
-                time_minutes=0  # Should be at least 1
+                time_minutes=0
             )
             recipe.full_clean()
 
     def test_recipe_servings_validation(self):
-        # Test minimum value validation
+        """Recipes should serve at least 1 person"""
         with self.assertRaises(ValidationError):
             recipe = Recipe(
                 user=self.user,
                 title="Invalid Recipe",
                 instructions="Test instructions",
                 time_minutes=15,
-                servings=0  # Should be at least 1
+                servings=0
             )
             recipe.full_clean()
 
+    def test_recipe_unique_title_per_user(self):
+        """Users can't have duplicate recipe titles"""
+        Recipe.objects.create(
+            user=self.user,
+            title="Pasta Recipe",
+            instructions="Make pasta",
+            time_minutes=20
+        )
+
+        with self.assertRaises(IntegrityError):
+            Recipe.objects.create(
+                user=self.user,
+                title="Pasta Recipe",
+                instructions="Different pasta",
+                time_minutes=30
+            )
+
+    def test_different_users_can_have_same_recipe_title(self):
+        """Different users should be able to use the same recipe title"""
+        Recipe.objects.create(
+            user=self.user,
+            title="Pasta Recipe",
+            instructions="User 1's pasta",
+            time_minutes=20
+        )
+
+        recipe2 = Recipe.objects.create(
+            user=self.other_user,
+            title="Pasta Recipe",
+            instructions="User 2's pasta",
+            time_minutes=25
+        )
+
+        self.assertEqual(recipe2.title, "Pasta Recipe")
+        self.assertEqual(recipe2.user, self.other_user)
+
     def test_recipe_with_tags(self):
+        """Recipes should support multiple tags"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Tagged Recipe",
@@ -244,6 +375,7 @@ class RecipeModelTests(TestCase):
         self.assertIn(self.tag2, recipe.tags.all())
 
     def test_recipe_cascade_delete_with_user(self):
+        """Recipes should be deleted when their owner is deleted"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Test Recipe",
@@ -258,7 +390,7 @@ class RecipeModelTests(TestCase):
             Recipe.objects.get(id=recipe_id)
 
     def test_recipe_image_upload_path(self):
-        # Test the image upload path function
+        """Recipe images should be stored in the right location with unique names"""
         from core.models import recipe_image_file_path
 
         recipe = Recipe.objects.create(
@@ -272,12 +404,34 @@ class RecipeModelTests(TestCase):
 
         self.assertTrue(path.startswith("uploads/recipe/"))
         self.assertTrue(path.endswith(".jpg"))
-        # Should contain a UUID (36 characters + extension)
         filename = path.split("/")[-1]
-        self.assertEqual(len(filename), 40)  # 36 chars UUID + '.jpg' (4 chars)
+        self.assertEqual(len(filename), 40)  # 36 char UUID + '.jpg'
+
+    def test_recipe_ordering(self):
+        """Recipes should be ordered by creation date, newest first"""
+        recipe1 = Recipe.objects.create(
+            user=self.user,
+            title="First Recipe",
+            instructions="First",
+            time_minutes=10
+        )
+
+        import time
+        time.sleep(0.01)  # Ensure different timestamps
+
+        recipe2 = Recipe.objects.create(
+            user=self.user,
+            title="Second Recipe",
+            instructions="Second",
+            time_minutes=15
+        )
+
+        recipes = list(Recipe.objects.all())
+        self.assertEqual(recipes[0], recipe2)
+        self.assertEqual(recipes[1], recipe1)
 
     def test_recipe_timestamps_update(self):
-        """Test that updated_at changes when model is updated"""
+        """Recipe timestamps should update when modified"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Original Title",
@@ -309,6 +463,7 @@ class RecipeIngredientModelTests(TestCase):
         self.ingredient = Ingredient.objects.create(name="Flour")
 
     def test_create_recipe_ingredient_successful(self):
+        """Recipe ingredients should link recipes and ingredients with quantities"""
         recipe_ingredient = RecipeIngredient.objects.create(
             recipe=self.recipe,
             ingredient=self.ingredient,
@@ -318,10 +473,22 @@ class RecipeIngredientModelTests(TestCase):
         self.assertEqual(recipe_ingredient.recipe, self.recipe)
         self.assertEqual(recipe_ingredient.ingredient, self.ingredient)
         self.assertEqual(recipe_ingredient.quantity, "2 cups")
+        self.assertEqual(recipe_ingredient.notes, "")
         self.assertEqual(str(recipe_ingredient), "2 cups Flour")
 
+    def test_recipe_ingredient_with_notes(self):
+        """Recipe ingredients should support optional notes"""
+        recipe_ingredient = RecipeIngredient.objects.create(
+            recipe=self.recipe,
+            ingredient=self.ingredient,
+            quantity="1 cup",
+            notes="sifted, room temperature"
+        )
+
+        self.assertEqual(recipe_ingredient.notes, "sifted, room temperature")
+
     def test_recipe_ingredient_unique_together(self):
-        """Test that the same ingredient cannot be added twice to the same recipe"""
+        """Each ingredient should only appear once per recipe"""
         RecipeIngredient.objects.create(
             recipe=self.recipe,
             ingredient=self.ingredient,
@@ -336,7 +503,7 @@ class RecipeIngredientModelTests(TestCase):
             )
 
     def test_recipe_ingredient_quantity_variations(self):
-        # Test different quantity formats
+        """Recipe ingredients should handle various quantity formats"""
         quantities = ["1 tbsp", "500g", "2 large", "1/2 cup", "a pinch"]
 
         for i, quantity in enumerate(quantities):
@@ -349,6 +516,7 @@ class RecipeIngredientModelTests(TestCase):
             self.assertEqual(recipe_ingredient.quantity, quantity)
 
     def test_recipe_ingredient_cascade_delete_recipe(self):
+        """Recipe ingredients should be deleted when their recipe is deleted"""
         recipe_ingredient = RecipeIngredient.objects.create(
             recipe=self.recipe,
             ingredient=self.ingredient,
@@ -362,6 +530,7 @@ class RecipeIngredientModelTests(TestCase):
             RecipeIngredient.objects.get(id=recipe_ingredient_id)
 
     def test_recipe_ingredient_cascade_delete_ingredient(self):
+        """Recipe ingredients should be deleted when their ingredient is deleted"""
         recipe_ingredient = RecipeIngredient.objects.create(
             recipe=self.recipe,
             ingredient=self.ingredient,
@@ -375,7 +544,7 @@ class RecipeIngredientModelTests(TestCase):
             RecipeIngredient.objects.get(id=recipe_ingredient_id)
 
     def test_recipe_multiple_ingredients(self):
-        # Test a recipe with multiple ingredients
+        """Recipes should support multiple ingredients with different quantities"""
         ingredients_data = [
             (Ingredient.objects.create(name="Salt"), "1 tsp"),
             (Ingredient.objects.create(name="Pepper"), "1/2 tsp"),
@@ -398,7 +567,7 @@ class RecipeIngredientModelTests(TestCase):
         self.assertIn("2 tbsp", quantities)
 
     def test_ingredient_multiple_recipes(self):
-        # Test an ingredient used in multiple recipes
+        """Ingredients should be reusable across different recipes"""
         recipe2 = Recipe.objects.create(
             user=self.user,
             title="Another Recipe",
@@ -427,7 +596,7 @@ class RecipeIngredientModelTests(TestCase):
 
 
 class RecipeIntegrationTests(TestCase):
-    """Integration tests for Recipe model relationships"""
+    """Tests that check how all the models work together"""
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -435,7 +604,7 @@ class RecipeIntegrationTests(TestCase):
         )
 
     def test_complete_recipe_creation(self):
-        # Create a complete recipe with tags and ingredients
+        """Test creating a full recipe with tags and ingredients"""
         recipe = Recipe.objects.create(
             user=self.user,
             title="Spaghetti Carbonara",
@@ -446,15 +615,15 @@ class RecipeIntegrationTests(TestCase):
             servings=4
         )
 
-        # Add tags
-        italian_tag = Tag.objects.create(name="Italian")
-        quick_tag = Tag.objects.create(name="Quick")
+        # Add some tags
+        italian_tag = Tag.objects.create(name="Italian", slug="italian")
+        quick_tag = Tag.objects.create(name="Quick", slug="quick")
         recipe.tags.add(italian_tag, quick_tag)
 
-        # Add ingredients
-        pasta = Ingredient.objects.create(name="Spaghetti")
-        eggs = Ingredient.objects.create(name="Eggs")
-        cheese = Ingredient.objects.create(name="Parmesan")
+        # Add ingredients with quantities
+        pasta = Ingredient.objects.create(name="Spaghetti", category="Pasta")
+        eggs = Ingredient.objects.create(name="Eggs", category="Dairy")
+        cheese = Ingredient.objects.create(name="Parmesan", category="Cheese")
 
         RecipeIngredient.objects.create(
             recipe=recipe,
@@ -464,7 +633,8 @@ class RecipeIntegrationTests(TestCase):
         RecipeIngredient.objects.create(
             recipe=recipe,
             ingredient=eggs,
-            quantity="4 large"
+            quantity="4 large",
+            notes="room temperature works best"
         )
         RecipeIngredient.objects.create(
             recipe=recipe,
@@ -472,8 +642,9 @@ class RecipeIntegrationTests(TestCase):
             quantity="100g grated"
         )
 
+        # Verify everything is connected properly
         self.assertEqual(recipe.tags.count(), 2)
-        self.assertEqual(recipe.ingredients.count(), 3)
+        self.assertEqual(recipe.recipe_ingredients.count(), 3)
 
         recipe_ingredients = RecipeIngredient.objects.filter(recipe=recipe)
         self.assertEqual(recipe_ingredients.count(), 3)
@@ -481,9 +652,11 @@ class RecipeIntegrationTests(TestCase):
         pasta_in_recipe = RecipeIngredient.objects.get(recipe=recipe, ingredient=pasta)
         self.assertEqual(pasta_in_recipe.quantity, "400g")
 
+        eggs_in_recipe = RecipeIngredient.objects.get(recipe=recipe, ingredient=eggs)
+        self.assertEqual(eggs_in_recipe.notes, "room temperature works best")
+
     def test_recipe_with_same_ingredient_different_quantities(self):
-        """Test that different recipes can use the same ingredient
-        with different quantities"""
+        """Same ingredient should work in different recipes with different amounts"""
         recipe1 = Recipe.objects.create(
             user=self.user,
             title="Small Cake",
@@ -498,7 +671,7 @@ class RecipeIntegrationTests(TestCase):
             time_minutes=60
         )
 
-        flour = Ingredient.objects.create(name="Flour")
+        flour = Ingredient.objects.create(name="Flour", category="Baking")
 
         RecipeIngredient.objects.create(
             recipe=recipe1,
@@ -515,21 +688,58 @@ class RecipeIntegrationTests(TestCase):
         flour_in_recipe1 = RecipeIngredient.objects.get(
             recipe=recipe1,
             ingredient=flour
-            )
+        )
         flour_in_recipe2 = RecipeIngredient.objects.get(
             recipe=recipe2,
             ingredient=flour
-            )
+        )
 
         self.assertEqual(flour_in_recipe1.quantity, "1 cup")
         self.assertEqual(flour_in_recipe2.quantity, "3 cups")
 
+    def test_public_vs_private_recipes(self):
+        """Test the privacy settings work correctly"""
+        public_recipe = Recipe.objects.create(
+            user=self.user,
+            title="Public Recipe",
+            instructions="Everyone can see this",
+            time_minutes=20,
+            is_public=True
+        )
+
+        private_recipe = Recipe.objects.create(
+            user=self.user,
+            title="Secret Recipe",
+            instructions="Only I can see this",
+            time_minutes=30,
+            is_public=False
+        )
+
+        # Test filtering
+        public_recipes = Recipe.objects.filter(is_public=True)
+        private_recipes = Recipe.objects.filter(is_public=False)
+
+        self.assertIn(public_recipe, public_recipes)
+        self.assertNotIn(private_recipe, public_recipes)
+        self.assertIn(private_recipe, private_recipes)
+        self.assertNotIn(public_recipe, private_recipes)
+
 
 class TimeStampedModelTests(TestCase):
-    """Test the TimeStampedModel abstract base class functionality"""
+    """Test the base timestamp functionality that all models inherit"""
+
+    def test_created_at_set_on_creation(self):
+        """All models should get a creation timestamp"""
+        tag = Tag.objects.create(name="Test Tag", slug="test-tag")
+        self.assertIsNotNone(tag.created_at)
+        self.assertLessEqual(
+            tag.created_at,
+            timezone.now()
+        )
 
     def test_updated_at_changes_on_modification(self):
-        tag = Tag.objects.create(name="Original Name")
+        """The updated timestamp should change when models are modified"""
+        tag = Tag.objects.create(name="Original Name", slug="original")
         original_created = tag.created_at
         original_updated = tag.updated_at
 
@@ -541,3 +751,24 @@ class TimeStampedModelTests(TestCase):
 
         self.assertEqual(tag.created_at, original_created)
         self.assertGreater(tag.updated_at, original_updated)
+
+    def test_timestamps_on_different_models(self):
+        """All models should have working timestamps"""
+        user = User.objects.create_user(
+            email="test@example.com",
+            name="Test User",
+            password="pass123"
+        )
+
+        tag = Tag.objects.create(name="Test", slug="test")
+        ingredient = Ingredient.objects.create(name="Test Ingredient")
+        recipe = Recipe.objects.create(
+            user=user,
+            title="Test Recipe",
+            instructions="Test",
+            time_minutes=10
+        )
+
+        for model in [tag, ingredient, recipe]:
+            self.assertIsNotNone(model.created_at)
+            self.assertIsNotNone(model.updated_at)
