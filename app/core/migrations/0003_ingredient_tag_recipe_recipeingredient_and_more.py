@@ -81,7 +81,9 @@ class Migration(migrations.Migration):
                     "servings",
                     models.IntegerField(
                         default=4,
-                        validators=[django.core.validators.MinValueValidator(1)],
+                        validators=[
+                            django.core.validators.MinValueValidator(1)
+                        ],
                     ),
                 ),
                 (
@@ -130,7 +132,8 @@ class Migration(migrations.Migration):
                 (
                     "recipe",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to="core.recipe"
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="core.recipe",
                     ),
                 ),
             ],

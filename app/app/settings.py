@@ -58,6 +58,7 @@ THIRD_PARTY_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "axes",
+    "django_filters"
 ]
 
 LOCAL_APPS = [
@@ -168,6 +169,15 @@ STATIC_ROOT = "/vol/web/static"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Recipe API',
+    'DESCRIPTION': 'API for managing recipes, ingredients, and tags',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SCHEMA_PATH_PREFIX': '/api/',
+}
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
