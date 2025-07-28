@@ -290,34 +290,90 @@ LOGGING = {
             "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
             "style": "{",
         },
+        "simple": {
+            "format": "{levelname} {asctime} {message}",
+            "style": "{",
+        },
     },
     "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": "/vol/web/django.log",
-            "formatter": "verbose",
-        },
         "console": {
             "level": "INFO",
             "class": "logging.StreamHandler",
+            "formatter": "verbose" if DEBUG else "simple",
+        },
+        "file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "/vol/web/logs/django.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "verbose",
+        },
+        "security_file": {
+            "level": "WARNING",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "/vol/web/logs/security.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
             "formatter": "verbose",
         },
     },
     "root": {
-        "handlers": ["console", "file"],
+        "handlers": ["console"] + (["file"] if not DEBUG else []),
         "level": "INFO",
     },
     "loggers": {
-        "django.security": {
-            "handlers": ["file"],
+        # Django system logs
+        "django": {
+            "handlers": ["console"] + (["file"] if not DEBUG else []),
             "level": "INFO",
-            "propagate": True,
+            "propagate": False,
         },
+        # Security-related logs (authentication, authorization, etc.)
+        "django.security": {
+            "handlers": ["console", "security_file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        # Django request logs (useful for monitoring API usage)
+        "django.request": {
+            "handlers": ["console"] + (["file"] if not DEBUG else []),
+            "level": "WARNING",  # Logs 4xx and 5xx responses
+            "propagate": False,
+        },
+        # Axes (brute force protection) logs
         "axes": {
-            "handlers": ["file"],
+            "handlers": ["console", "security_file"],
             "level": "INFO",
-            "propagate": True,
+            "propagate": False,
+        },
+        # Authentication logs (login attempts, etc.)
+        "allauth": {
+            "handlers": ["console", "security_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Your custom app logs
+        "core": {
+            "handlers": ["console"] + (["file"] if not DEBUG else []),
+            "level": "INFO",
+            "propagate": False,
+        },
+        "user": {
+            "handlers": ["console"] + (["file"] if not DEBUG else []),
+            "level": "INFO",
+            "propagate": False,
+        },
+        "recipe": {
+            "handlers": ["console"] + (["file"] if not DEBUG else []),
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Database queries (only in debug mode)
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "ERROR",
+            "propagate": False,
         },
     },
 }

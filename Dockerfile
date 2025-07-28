@@ -27,7 +27,7 @@ RUN apk add --no-cache \
     libjpeg \
     libpq \
     openssl-dev \
-    libffi-dev \ 
+    libffi-dev \
     && apk add --no-cache --virtual .build-deps \
     gcc \
     musl-dev \
@@ -47,6 +47,7 @@ RUN apk add --no-cache \
         --no-create-home \
         django-user \
     && mkdir -p /vol/web/media /vol/web/static \
+    && mkdir -p /vol/web/logs \
     && chown -R django-user:django-user /vol \
     && chmod -R 755 /vol \
     && chmod -R +x /scripts
