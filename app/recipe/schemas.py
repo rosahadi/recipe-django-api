@@ -444,7 +444,8 @@ recipe_viewset_schema = extend_schema_view(
                             "JSON string of ingredients for multipart uploads"
                         ),
                         "example": (
-                            '[{"ingredient_name":"chicken breast","quantity":"2 pieces",'
+                            '[{"ingredient_name":"chicken breast",'
+                            '"quantity":"2 pieces",'
                             '"notes":"boneless, skinless"},'
                             '{"ingredient_name":"mixed greens","quantity":"4 cups",'
                             '"notes":""},'

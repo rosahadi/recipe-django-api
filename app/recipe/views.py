@@ -319,32 +319,43 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Filter recipes based on user permissions and query parameters."""
-        try:
-            queryset = self.queryset
-            user = self.request.user
-            params = self.request.query_params
+        queryset = self.queryset
+        user = getattr(self.request, "user", None)
 
-            # Apply permission-based filtering
-            if user.is_authenticated and user.is_superuser:
-                pass  # Superusers see everything
-            elif user.is_authenticated:
-                queryset = queryset.filter(Q(is_public=True) | Q(user=user))
+        # Apply basic permission filtering first
+        if user and user.is_authenticated:
+            if hasattr(user, "is_superuser") and user.is_superuser:
+                # Superusers see everything
+                pass
             else:
-                queryset = queryset.filter(is_public=True)
+                # Regular authenticated users see public recipes + their own
+                queryset = queryset.filter(Q(is_public=True) | Q(user=user))
+        else:
+            # Anonymous users or None user only see public recipes
+            queryset = queryset.filter(is_public=True)
 
-            # Apply additional filters
-            queryset = self._apply_filters(queryset, params, user)
-            return queryset
+        # Apply additional filters
+        try:
+            params = self.request.query_params
+            if params:
+                queryset = self._apply_filters(queryset, params, user)
+        except ValidationError:
+            raise
         except Exception as e:
-            logger.error(f"Error in get_queryset: {str(e)}")
-            raise ValidationError("Error applying recipe filters")
+            logger.error(
+                f"Unexpected error in get_queryset: {str(e)}", exc_info=True
+            )
+            pass
+
+        return queryset
 
     def _apply_filters(self, queryset, params, user):
         """Apply query parameter filters with validation."""
         try:
-            # My recipes filter
-            if params.get("my_recipes", "").lower() == "true":
-                if not user.is_authenticated:
+            # My recipes filter - only for authenticated users
+            my_recipes = params.get("my_recipes", "").lower()
+            if my_recipes == "true":
+                if not user or not user.is_authenticated:
                     raise ValidationError(
                         "Authentication required for 'my_recipes' filter"
                     )
@@ -355,18 +366,30 @@ class RecipeViewSet(viewsets.ModelViewSet):
             if user_id:
                 try:
                     user_id = int(user_id)
-                    if user.is_authenticated and user.is_superuser:
+                    if user_id <= 0:
+                        raise ValidationError(
+                            "Invalid user_id: " "must be a positive number"
+                        )
+
+                    if (
+                        user
+                        and user.is_authenticated
+                        and hasattr(user, "is_superuser")
+                        and user.is_superuser
+                    ):
                         queryset = queryset.filter(user_id=user_id)
                     else:
                         queryset = queryset.filter(
                             user_id=user_id, is_public=True
                         )
-                except ValueError:
-                    raise ValidationError("Invalid user_id: must be a number")
+                except (ValueError, TypeError):
+                    raise ValidationError(
+                        "Invalid user_id: must be a valid number"
+                    )
 
             # Tag filter
             tags = params.get("tags")
-            if tags:
+            if tags and tags.strip():
                 tag_names = [
                     tag.strip().lower()
                     for tag in tags.split(",")
@@ -379,7 +402,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
             # Ingredient filter
             ingredients = params.get("ingredients")
-            if ingredients:
+            if ingredients and ingredients.strip():
                 ingredient_names = [
                     ing.strip().lower()
                     for ing in ingredients.split(",")
@@ -392,7 +415,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
             # Time filter
             max_time = params.get("max_time")
-            if max_time:
+            if max_time and max_time.strip():
                 try:
                     max_time_int = int(max_time)
                     if max_time_int < 0:
@@ -400,25 +423,27 @@ class RecipeViewSet(viewsets.ModelViewSet):
                             "max_time must be a positive number"
                         )
                     queryset = queryset.filter(time_minutes__lte=max_time_int)
-                except ValueError:
+                except (ValueError, TypeError):
                     raise ValidationError("max_time must be a valid number")
 
             # Servings filter
             min_servings = params.get("min_servings")
-            if min_servings:
+            if min_servings and min_servings.strip():
                 try:
                     min_servings_int = int(min_servings)
                     if min_servings_int < 1:
                         raise ValidationError("min_servings must be at least 1")
                     queryset = queryset.filter(servings__gte=min_servings_int)
-                except ValueError:
+                except (ValueError, TypeError):
                     raise ValidationError("min_servings must be a valid number")
 
             return queryset
         except ValidationError:
             raise
         except Exception as e:
-            logger.error(f"Error applying filters: {str(e)}")
+            logger.error(
+                f"Unexpected error applying filters: {str(e)}", exc_info=True
+            )
             raise ValidationError("Invalid filter parameters")
 
     def get_serializer_class(self):
